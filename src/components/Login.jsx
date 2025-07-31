@@ -1,25 +1,15 @@
 // src/components/Login.jsx
 import { useEffect } from "react";
-import { auth, provider } from "../firebase";
-import { signInWithPopup } from "firebase/auth";
 import { useNavigate } from "react-router-dom";
 import { auth, googleProvider, allowedEmails } from "../firebase";
-
-const allowedEmails = [
-  "pmadhusreereddy_it201242@mgit.ac.in",
-  "bnikitha_it201207@mgit.ac.in",
-  "bjayasree_it201209@mgit.ac.in",
-  "bsumanth_it201208@mgit.ac.in",
-  "ypranavanreddy_it201260@mgit.ac.in",
-  "akashkumarreddy955@gmail.com"
-];
+import { signInWithPopup } from "firebase/auth";
 
 const Login = () => {
   const navigate = useNavigate();
 
   const handleLogin = async () => {
     try {
-      const result = await signInWithPopup(auth, provider);
+      const result = await signInWithPopup(auth, googleProvider);
       const email = result.user.email;
 
       if (allowedEmails.includes(email)) {
@@ -27,10 +17,11 @@ const Login = () => {
         navigate("/home");
       } else {
         alert("Access Denied. Your email is not authorized.");
-        auth.signOut();
+        await auth.signOut();
       }
     } catch (error) {
       console.error("Login Error:", error);
+      alert("Login failed. Please try again.");
     }
   };
 
@@ -39,7 +30,7 @@ const Login = () => {
     if (user) {
       navigate("/home");
     }
-  }, []);
+  }, [navigate]);
 
   return (
     <div className="h-screen flex items-center justify-center bg-gradient-to-br from-[#0f0f0f] to-[#1a1a1a] text-white">

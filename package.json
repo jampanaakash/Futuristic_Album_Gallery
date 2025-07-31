@@ -3,7 +3,7 @@
   "private": true,
   "version": "0.0.0",
   "type": "module",
-  "homepage": "https://yourusername.github.io/your-repo-name",
+  "homepage": "https://jampanaakash.github.io/Futuristic_Album_Gallery",
   "scripts": {
     "dev": "vite",
     "build": "vite build",

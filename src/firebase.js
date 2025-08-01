@@ -7,7 +7,7 @@ const firebaseConfig = {
   apiKey: "AIzaSyDdlycZooWjNthrwMUmr-ceGmjacF9dSag",
   authDomain: "futuristic-album-gallery.firebaseapp.com",
   projectId: "futuristic-album-gallery",
-  storageBucket: "futuristic-album-gallery.firebasestorage.app",
+  storageBucket: "futuristic-album-gallery.appspot.com",
   messagingSenderId: "998656016044",
   appId: "1:998656016044:web:0cf8f658ff9ecc4e15e909",
   measurementId: "G-LCZWZSY928"

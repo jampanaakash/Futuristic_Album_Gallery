@@ -1,4 +1,3 @@
-// src/components/Login.jsx
 import { useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import { auth, googleProvider, allowedEmails } from "../firebase";
@@ -27,9 +26,7 @@ const Login = () => {
 
   useEffect(() => {
     const user = localStorage.getItem("user");
-    if (user) {
-      navigate("/home");
-    }
+    if (user) navigate("/home");
   }, [navigate]);
 
   return (

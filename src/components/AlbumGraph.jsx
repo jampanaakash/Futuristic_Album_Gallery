@@ -1,174 +1,214 @@
-import React, { useState, useEffect } from 'react';
-import { motion } from 'framer-motion';
-import AlbumCard from './AlbumCard';
+import React, { useEffect, useState } from "react";
+import { useNavigate } from "react-router-dom";
+import { db, storage } from "../firebase";
+import {
+  collection,
+  onSnapshot,
+  query,
+  orderBy,
+  deleteDoc,
+  doc,
+} from "firebase/firestore";
+import { ref, listAll, deleteObject, uploadBytes, getMetadata } from "firebase/storage";
 
-const AlbumGraph = ({ albums, onAlbumClick }) => {
-  const [containerSize, setContainerSize] = useState({ width: 0, height: 0 });
+const AlbumCard = ({ data, onDelete, onClick, onAddPhotos }) => {
+  return (
+    <div
+      className="bg-white rounded-xl shadow-lg border border-gray-300 overflow-hidden hover:scale-105 transition-transform cursor-pointer relative"
+      onClick={onClick}
+    >
+      <img
+        src={data.coverImage || "https://via.placeholder.com/150"}
+        alt={data.title}
+        className="w-full h-40 object-cover"
+      />
+      <div className="p-2 text-center font-medium text-sm text-gray-800">
+        {data.title || "Untitled"}
+      </div>
+
+      {/* ❌ Delete Button */}
+      <button
+        className="absolute top-1 right-1 text-white bg-red-600 hover:bg-red-700 p-1 rounded"
+        onClick={(e) => {
+          e.stopPropagation();
+          onDelete();
+        }}
+      >
+        ✕
+      </button>
+
+      {/* ➕ Add Photos Button */}
+      <button
+        className="absolute bottom-2 right-2 text-white bg-blue-600 hover:bg-blue-700 p-1 px-2 text-xs rounded"
+        onClick={(e) => {
+          e.stopPropagation();
+          onAddPhotos();
+        }}
+      >
+        + Add Photos
+      </button>
+    </div>
+  );
+};
+
+const AlbumGraph = () => {
+  const [albums, setAlbums] = useState([]);
+  const [selectedAlbum, setSelectedAlbum] = useState(null);
+  const [newImages, setNewImages] = useState([]);
+  const [uploading, setUploading] = useState(false);
+  const navigate = useNavigate();
 
   useEffect(() => {
-    const updateSize = () => {
-      setContainerSize({
-        width: window.innerWidth,
-        height: window.innerHeight - 100,
-      });
-    };
+    const q = query(collection(db, "albums"), orderBy("createdAt", "desc"));
+    const unsubscribe = onSnapshot(q, (querySnapshot) => {
+      const albumData = [];
 
-    updateSize();
-    window.addEventListener('resize', updateSize);
-    return () => window.removeEventListener('resize', updateSize);
+      querySnapshot.forEach((docSnap) => {
+        const album = docSnap.data();
+        if (!album || !album.title || !album.coverImage) return;
+
+        albumData.push({
+          id: docSnap.id,
+          title: album.title,
+          coverImage: album.coverImage,
+        });
+      });
+
+      setAlbums(albumData);
+    });
+
+    return () => unsubscribe();
   }, []);
 
-  // Generate positions for albums in a connected graph layout
-  const generatePositions = (albumCount) => {
-    if (albumCount === 0) return [];
-    
-    const positions = [];
-    const centerX = containerSize.width / 2;
-    const centerY = containerSize.height / 2;
-    
-    if (albumCount === 1) {
-      positions.push({ x: centerX, y: centerY });
-      return positions;
-    }
+  const handleDelete = async (albumId, title) => {
+    if (!window.confirm(`Are you sure you want to delete album "${title}"?`)) return;
 
-    // Create a spiral-like pattern for multiple albums
-    const radius = Math.min(containerSize.width, containerSize.height) * 0.25;
-    const angleStep = (2 * Math.PI) / albumCount;
-    
-    for (let i = 0; i < albumCount; i++) {
-      const angle = i * angleStep;
-      const spiralRadius = radius + (i * 50);
-      const x = centerX + Math.cos(angle) * spiralRadius;
-      const y = centerY + Math.sin(angle) * spiralRadius;
-      
-      positions.push({
-        x: Math.max(150, Math.min(containerSize.width - 150, x)),
-        y: Math.max(100, Math.min(containerSize.height - 100, y)),
-      });
+    try {
+      await deleteDoc(doc(db, "albums", albumId));
+
+      const albumFolderRef = ref(storage, `albums/${title}`);
+      const listResult = await listAll(albumFolderRef);
+      const deletePromises = listResult.items.map((itemRef) => deleteObject(itemRef));
+      await Promise.all(deletePromises);
+
+      alert("Album deleted successfully!");
+    } catch (err) {
+      console.error("Failed to delete album:", err);
+      alert("Failed to delete album. Check console for details.");
     }
-    
-    return positions;
   };
 
-  const positions = generatePositions(albums.length);
+  const handleClick = (album) => {
+    navigate("/gallery", {
+      state: {
+        albumId: album.id,
+        albumTitle: album.title,
+      },
+    });
+  };
 
-  // Generate connection paths between albums
-  const renderConnections = () => {
-    if (albums.length < 2) return null;
-
-    const paths = [];
-    for (let i = 0; i < positions.length - 1; i++) {
-      const start = positions[i];
-      const end = positions[i + 1];
-      
-      paths.push(
-        <motion.line
-          key={`connection-${i}`}
-          x1={start.x}
-          y1={start.y}
-          x2={end.x}
-          y2={end.y}
-          stroke="url(#connectionGradient)"
-          strokeWidth="2"
-          initial={{ pathLength: 0, opacity: 0 }}
-          animate={{ pathLength: 1, opacity: 0.6 }}
-          transition={{ duration: 1, delay: i * 0.2 }}
-        />
-      );
+  const handleAddPhotos = async () => {
+    if (!selectedAlbum || newImages.length === 0) {
+      alert("Please select images to upload.");
+      return;
     }
 
-    // Connect last to first to create a circuit
-    if (positions.length > 2) {
-      const start = positions[positions.length - 1];
-      const end = positions[0];
-      
-      paths.push(
-        <motion.line
-          key="connection-circuit"
-          x1={start.x}
-          y1={start.y}
-          x2={end.x}
-          y2={end.y}
-          stroke="url(#connectionGradient)"
-          strokeWidth="2"
-          initial={{ pathLength: 0, opacity: 0 }}
-          animate={{ pathLength: 1, opacity: 0.6 }}
-          transition={{ duration: 1, delay: positions.length * 0.2 }}
-        />
-      );
-    }
+    setUploading(true);
 
-    return paths;
+    try {
+      const albumPath = `albums/${selectedAlbum.title}`;
+
+      // Check for duplicates before uploading
+      const existingFiles = await listAll(ref(storage, albumPath));
+      const existingNames = new Set(existingFiles.items.map((item) => item.name));
+
+      const uploadTasks = [];
+
+      for (const img of newImages) {
+        if (existingNames.has(img.name)) {
+          console.warn(`Skipped duplicate file: ${img.name}`);
+          continue; // skip duplicate
+        }
+        const imgRef = ref(storage, `${albumPath}/${img.name}`);
+        uploadTasks.push(uploadBytes(imgRef, img));
+      }
+
+      if (uploadTasks.length === 0) {
+        alert("No new files uploaded. All selected files already exist.");
+      } else {
+        await Promise.all(uploadTasks);
+        alert("✅ New photos added to album!");
+      }
+
+      // Reset state
+      setSelectedAlbum(null);
+      setNewImages([]);
+    } catch (err) {
+      console.error("Upload failed:", err);
+      alert("❌ Failed to upload new photos.");
+    } finally {
+      setUploading(false);
+    }
   };
 
   return (
-    <div className="relative w-full h-full">
-      {/* Background grid pattern */}
-      <div className="absolute inset-0 opacity-10">
-        <svg className="w-full h-full">
-          <pattern
-            id="grid"
-            width="50"
-            height="50"
-            patternUnits="userSpaceOnUse"
-          >
-            <path
-              d="M 50 0 L 0 0 0 50"
-              fill="none"
-              stroke="cyan"
-              strokeWidth="1"
-            />
-          </pattern>
-          <rect width="100%" height="100%" fill="url(#grid)" />
-        </svg>
-      </div>
-
-      {/* Connection lines */}
-      <svg className="absolute inset-0 w-full h-full pointer-events-none">
-        <defs>
-          <linearGradient id="connectionGradient" x1="0%" y1="0%" x2="100%" y2="0%">
-            <stop offset="0%" stopColor="#06b6d4" stopOpacity="0.8" />
-            <stop offset="50%" stopColor="#8b5cf6" stopOpacity="0.6" />
-            <stop offset="100%" stopColor="#06b6d4" stopOpacity="0.8" />
-          </linearGradient>
-        </defs>
-        {renderConnections()}
-      </svg>
-
-      {/* Album cards */}
-      {albums.map((album, index) => (
-        <AlbumCard
-          key={album.id}
-          album={album}
-          position={positions[index] || { x: 0, y: 0 }}
-          onClick={onAlbumClick}
-        />
-      ))}
-
-      {/* Floating particles effect */}
-      <div className="absolute inset-0 pointer-events-none">
-        {[...Array(20)].map((_, i) => (
-          <motion.div
-            key={i}
-            className="absolute w-1 h-1 bg-cyan-400 rounded-full"
-            initial={{
-              x: Math.random() * containerSize.width,
-              y: Math.random() * containerSize.height,
-              opacity: 0,
-            }}
-            animate={{
-              x: Math.random() * containerSize.width,
-              y: Math.random() * containerSize.height,
-              opacity: [0, 1, 0],
-            }}
-            transition={{
-              duration: Math.random() * 10 + 5,
-              repeat: Infinity,
-              ease: 'linear',
-            }}
+    <div className="w-full min-h-screen bg-gradient-to-b from-gray-900 to-gray-700 px-6 pt-6 pb-24">
+      <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-6">
+        {albums.map((album) => (
+          <AlbumCard
+            key={album.id}
+            data={album}
+            onClick={() => handleClick(album)}
+            onDelete={() => handleDelete(album.id, album.title)}
+            onAddPhotos={() => setSelectedAlbum(album)}
           />
         ))}
       </div>
+
+      {/* 📤 Upload More Images Modal */}
+      {selectedAlbum && (
+        <div className="fixed inset-0 bg-black/60 flex items-center justify-center z-50">
+          <div className="bg-white rounded-lg p-6 w-full max-w-md text-gray-800 relative">
+            <h2 className="text-lg font-bold mb-3">
+              Add Photos to "{selectedAlbum.title}"
+            </h2>
+
+            <input
+              type="file"
+              accept="image/*"
+              multiple
+              onChange={(e) => setNewImages([...e.target.files])}
+              className="w-full mb-4"
+            />
+
+            <div className="flex justify-end gap-2">
+              <button
+                onClick={() => {
+                  setSelectedAlbum(null);
+                  setNewImages([]);
+                }}
+                className="px-4 py-2 border rounded text-gray-700 hover:bg-gray-100"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={handleAddPhotos}
+                disabled={uploading}
+                className="px-4 py-2 bg-cyan-600 text-white rounded hover:bg-cyan-700 flex items-center gap-2"
+              >
+                {uploading ? (
+                  <>
+                    <span className="animate-spin inline-block w-4 h-4 border-2 border-white border-t-transparent rounded-full" />
+                    Uploading...
+                  </>
+                ) : (
+                  "Upload"
+                )}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 };

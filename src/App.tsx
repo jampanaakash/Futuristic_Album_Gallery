@@ -5,6 +5,7 @@ import { auth, allowedEmails } from './firebase';
 import Login from './pages/Login';
 import Home from './pages/Home';
 import AccessDenied from './pages/AccessDenied';
+import Gallery from './pages/Gallery';
 
 function App() {
   const [user, setUser] = useState(null);
@@ -12,19 +13,11 @@ function App() {
   const [isAuthorized, setIsAuthorized] = useState(false);
 
   useEffect(() => {
-    const unsubscribe = onAuthStateChanged(auth, (user) => {
-      setUser(user);
-      
-      if (user) {
-        const authorized = allowedEmails.includes(user.email);
-        setIsAuthorized(authorized);
-      } else {
-        setIsAuthorized(false);
-      }
-      
+    const unsubscribe = onAuthStateChanged(auth, (firebaseUser) => {
+      setUser(firebaseUser);
+      setIsAuthorized(firebaseUser?.email && allowedEmails.includes(firebaseUser.email));
       setLoading(false);
     });
-
     return () => unsubscribe();
   }, []);
 
@@ -42,26 +35,9 @@ function App() {
   return (
     <Router>
       <Routes>
-        <Route 
-          path="/" 
-          element={
-            user && isAuthorized ? (
-              <Navigate to="/home" replace />
-            ) : (
-              <Login />
-            )
-          } 
-        />
-        <Route 
-          path="/home" 
-          element={
-            user && isAuthorized ? (
-              <Home />
-            ) : (
-              <Navigate to="/" replace />
-            )
-          } 
-        />
+        <Route path="/" element={user && isAuthorized ? <Navigate to="/home" replace /> : <Login />} />
+        <Route path="/home" element={user && isAuthorized ? <Home /> : <Navigate to="/" replace />} />
+        <Route path="/gallery" element={user && isAuthorized ? <Gallery /> : <Navigate to="/" replace />} />
         <Route path="/access-denied" element={<AccessDenied />} />
         <Route path="*" element={<Navigate to="/" replace />} />
       </Routes>

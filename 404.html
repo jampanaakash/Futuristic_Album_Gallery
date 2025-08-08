@@ -1,7 +1,14 @@
 <!DOCTYPE html>
 <html>
   <head>
-    <meta http-equiv="refresh" content="0; url=/Futuristic_Album_Gallery/" />
+    <meta charset="utf-8">
+    <title>Redirecting...</title>
+    <script>
+      // Store the current path so the SPA can pick it up after reload
+      sessionStorage.redirect = location.pathname + location.search + location.hash;
+      // Redirect to index.html within the repo
+      location.href = '/Futuristic_Album_Gallery/';
+    </script>
   </head>
   <body></body>
 </html>
